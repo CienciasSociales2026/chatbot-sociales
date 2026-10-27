@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planeador de Sociales</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+  :root {
+    --fondo: #f6f4ef;
+    --panel: #ffffff;
+    --texto: #23211d;
+    --suave: #6b665c;
+    --borde: #e2ddd2;
+    --acento: #8a4b1f;
+    --acento-texto: #ffffff;
+    --burbuja: #f1e7dc;
+    --error: #a52a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #1b1a17;
+      --panel: #252420;
+      --texto: #ece8df;
+      --suave: #a59f92;
+      --borde: #3a3832;
+      --acento: #d08a52;
+      --acento-texto: #1b1a17;
+      --burbuja: #3a2e23;
+      --error: #f08080;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--fondo); color: var(--texto);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button {
+    cursor: pointer; border: 1px solid var(--borde); background: var(--panel);
+    border-radius: 8px; padding: 8px 14px;
+  }
+  button.principal { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  input, select, textarea {
+    width: 100%; background: var(--panel); border: 1px solid var(--borde);
+    border-radius: 8px; padding: 9px 11px;
+  }
+  label { display: block; font-size: 13px; color: var(--suave); margin-bottom: 4px; }
+
+  /* Ingreso */
+  #ingreso { min-height: 100%; display: grid; place-items: center; padding: 16px; }
+  .tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 28px; width: 100%; max-width: 400px; }
+  .tarjeta h1 { margin: 0 0 6px; font-size: 22px; }
+  .tarjeta p { margin: 0 0 18px; color: var(--suave); }
+  .tarjeta button { width: 100%; margin-top: 12px; }
+  .error { color: var(--error); font-size: 14px; margin-top: 10px; min-height: 1em; }
+
+  /* App */
+  #app { display: none; height: 100%; flex-direction: column; }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    border-bottom: 1px solid var(--borde); background: var(--panel);
+  }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  header button { padding: 6px 10px; font-size: 14px; }
+  #conversacion { flex: 1; overflow-y: auto; padding: 16px; }
+  .contenido { max-width: 860px; margin: 0 auto; }
+
+  .bienvenida { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 20px; }
+  .bienvenida h2 { margin: 0 0 4px; font-size: 18px; }
+  .bienvenida > p { margin: 0 0 16px; color: var(--suave); font-size: 15px; }
+  .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .rejilla .ancho { grid-column: 1 / -1; }
+  .bienvenida button { margin-top: 14px; }
+
+  .msg { margin: 14px 0; }
+  .msg.user { display: flex; justify-content: flex-end; }
+  .msg.user .burbuja { background: var(--burbuja); border-radius: 14px 14px 4px 14px; padding: 10px 14px; max-width: 85%; white-space: pre-wrap; }
+  .msg.assistant .cuerpo { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 6px 20px; overflow-x: auto; }
+  .cuerpo table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; }
+  .cuerpo th, .cuerpo td { border: 1px solid var(--borde); padding: 6px 8px; text-align: left; vertical-align: top; }
+  .cuerpo th { background: var(--burbuja); }
+  .cuerpo h1, .cuerpo h2, .cuerpo h3 { line-height: 1.25; }
+  .cuerpo h1 { font-size: 21px; } .cuerpo h2 { font-size: 18px; } .cuerpo h3 { font-size: 16px; }
+  .acciones { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .acciones button { font-size: 13px; padding: 5px 10px; }
+  .pensando { color: var(--suave); font-style: italic; padding: 12px 0; }
+
+  footer { border-top: 1px solid var(--borde); background: var(--panel); padding: 12px 16px; }
+  footer form { display: flex; gap: 10px; max-width: 860px; margin: 0 auto; align-items: flex-end; }
+  footer textarea { resize: none; min-height: 46px; max-height: 180px; }
+  .aviso { max-width: 860px; margin: 6px auto 0; font-size: 12px; color: var(--suave); text-align: center; }
+
+  @media (max-width: 560px) {
+    header h1 { font-size: 15px; }
+    .msg.assistant .cuerpo { padding: 4px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<section id="ingreso">
+  <form class="tarjeta" id="formIngreso">
+    <h1>🗺️ Planeador de Sociales</h1>
+    <p>Asistente de planeación de clases de Ciencias Sociales con análisis de fuentes históricas y cartográficas.</p>
+    <label for="codigo">Código de acceso</label>
+    <input id="codigo" type="password" autocomplete="current-password" required>
+    <button class="principal" type="submit">Entrar</button>
+    <div class="error" id="errorIngreso"></div>
+  </form>
+</section>
+
+<section id="app">
+  <header>
+    <h1>🗺️ Planeador de Sociales</h1>
+    <button id="btnNueva" type="button">Nueva conversación</button>
+    <button id="btnSalir" type="button">Salir</button>
+  </header>
+
+  <div id="conversacion"><div class="contenido" id="mensajes"></div></div>
+
+  <footer>
+    <form id="formChat">
+      <textarea id="entrada" rows="1" placeholder="Escriba su solicitud o un ajuste al plan…"></textarea>
+      <button class="principal" id="btnEnviar" type="submit">Enviar</button>
+    </form>
+    <div class="aviso">Plan generado por IA: revise los referentes curriculares en los documentos oficiales del MEN antes de usarlo.</div>
+  </footer>
+</section>
+
+<template id="plantillaBienvenida">
+  <div class="bienvenida">
+    <h2>Nuevo plan de clase</h2>
+    <p>Llene los datos y pulse «Generar plan», o escriba su solicitud abajo con sus propias palabras.</p>
+    <div class="rejilla">
+      <div>
+        <label for="fGrado">Grado</label>
+        <select id="fGrado">
+          <option value="">Seleccione…</option>
+          <option>1.°</option><option>2.°</option><option>3.°</option><option>4.°</option>
+          <option>5.°</option><option>6.°</option><option>7.°</option><option>8.°</option>
+          <option>9.°</option><option>10.°</option><option>11.°</option>
+        </select>
+      </div>
+      <div>
+        <label for="fDuracion">Duración</label>
+        <select id="fDuracion">
+          <option>1 sesión de 55 minutos</option>
+          <option>1 bloque de 110 minutos</option>
+          <option>2 sesiones de 55 minutos</option>
+          <option>3 sesiones de 55 minutos</option>
+          <option>4 sesiones de 55 minutos</option>
+        </select>
+      </div>
+      <div class="ancho">
+        <label for="fTema">Tema</label>
+        <input id="fTema" placeholder="Ej.: La Independencia de Colombia y el papel de las regiones">
+      </div>
+      <div class="ancho">
+        <label for="fContexto">Contexto y observaciones (opcional)</label>
+        <textarea id="fContexto" rows="2" placeholder="Ej.: colegio rural, 32 estudiantes, sin internet, 2 estudiantes con baja visión"></textarea>
+      </div>
+    </div>
+    <button class="principal" id="btnGenerar" type="button">Generar plan</button>
+  </div>
+</template>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const CLAVE_CODIGO = "planeador.codigo";
+  const CLAVE_CONV = "planeador.conversacion";
+
+  // localStorage puede fallar (modo privado); la página funciona igual sin él.
+  const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const borrar = (k) => { try { localStorage.removeItem(k); } catch {} };
+
+  let codigo = null;
+  let mensajes = [];   // [{role:"user"|"assistant", content:"..."}]
+  let ocupado = false;
+
+  marked.setOptions({ gfm: true, breaks: false });
+  const html = (md) => DOMPurify.sanitize(marked.parse(md));
+
+  // ---------- Ingreso ----------
+  async function verificar(c) {
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo: c, soloVerificar: true }),
+    });
+    if (r.ok) return null;
+    const d = await r.json().catch(() => ({}));
+    return d.error || "No se pudo verificar el código.";
+  }
+
+  $("formIngreso").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const c = $("codigo").value.trim();
+    $("errorIngreso").textContent = "Verificando…";
+    const err = await verificar(c).catch(() => "No hay conexión con el servidor.");
+    if (err) { $("errorIngreso").textContent = err; return; }
+    $("errorIngreso").textContent = "";
+    codigo = c;
+    guardar(CLAVE_CODIGO, c);
+    abrirApp();
+  });
+
+  function abrirApp() {
+    $("ingreso").style.display = "none";
+    $("app").style.display = "flex";
+    try { mensajes = JSON.parse(leer(CLAVE_CONV) || "[]"); } catch { mensajes = []; }
+    if (!Array.isArray(mensajes) || (mensajes.length && mensajes[mensajes.length - 1].role !== "assistant")) mensajes = [];
+    pintarTodo();
+    $("entrada").focus();
+  }
+
+  $("btnSalir").addEventListener("click", () => {
+    borrar(CLAVE_CODIGO);
+    codigo = null;
+    $("app").style.display = "none";
+    $("ingreso").style.display = "grid";
+    $("codigo").value = "";
+  });
+
+  $("btnNueva").addEventListener("click", () => {
+    if (ocupado) return;
+    if (mensajes.length && !confirm("¿Empezar una conversación nueva? La actual se borrará de esta pantalla.")) return;
+    mensajes = [];
+    borrar(CLAVE_CONV);
+    pintarTodo();
+  });
+
+  // ---------- Pintar ----------
+  function pintarTodo() {
+    const cont = $("mensajes");
+    cont.innerHTML = "";
+    if (mensajes.length === 0) {
+      cont.appendChild($("plantillaBienvenida").content.cloneNode(true));
+      $("btnGenerar").addEventListener("click", generarDesdeFormulario);
+    }
+    mensajes.forEach((m) => cont.appendChild(crearMensaje(m.role, m.content)));
+    bajar();
+  }
+
+  function crearMensaje(rol, texto) {
+    const div = document.createElement("div");
+    div.className = "msg " + rol;
+    if (rol === "user") {
+      const b = document.createElement("div");
+      b.className = "burbuja";
+      b.textContent = texto;
+      div.appendChild(b);
+    } else {
+      const c = document.createElement("div");
+      c.className = "cuerpo";
+      c.innerHTML = html(texto);
+      div.appendChild(c);
+      div.appendChild(crearAcciones(() => c, () => texto));
+    }
+    return div;
+  }
+
+  function crearAcciones(getCuerpo, getTexto) {
+    const a = document.createElement("div");
+    a.className = "acciones";
+    const copiar = document.createElement("button");
+    copiar.type = "button";
+    copiar.textContent = "Copiar";
+    copiar.onclick = async () => {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/html": new Blob([getCuerpo().innerHTML], { type: "text/html" }),
+          "text/plain": new Blob([getTexto()], { type: "text/plain" }),
+        })]);
+      } catch {
+        await navigator.clipboard.writeText(getTexto()).catch(() => {});
+      }
+      copiar.textContent = "Copiado ✓";
+      setTimeout(() => (copiar.textContent = "Copiar"), 1500);
+    };
+    const word = document.createElement("button");
+    word.type = "button";
+    word.textContent = "Descargar para Word";
+    word.onclick = () => descargarWord(getCuerpo().innerHTML);
+    a.append(copiar, word);
+    return a;
+  }
+
+  function descargarWord(cuerpoHtml) {
+    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Plan de clase</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.4}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;vertical-align:top}th{background:#eee}h1{font-size:16pt}h2{font-size:14pt}h3{font-size:12pt}</style></head><body>${cuerpoHtml}</body></html>`;
+    const blob = new Blob(["﻿", doc], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const fecha = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `Plan de clase ${fecha}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function bajar() {
+    const c = $("conversacion");
+    c.scrollTop = c.scrollHeight;
+  }
+
+  // ---------- Enviar ----------
+  function generarDesdeFormulario() {
+    const grado = $("fGrado").value;
+    const tema = $("fTema").value.trim();
+    const duracion = $("fDuracion").value;
+    const contexto = $("fContexto").value.trim();
+    if (!grado || !tema) { alert("Indique al menos el grado y el tema."); return; }
+    let t = `Necesito un plan de clase de Ciencias Sociales.\nGrado: ${grado}\nTema: ${tema}\nDuración: ${duracion}`;
+    if (contexto) t += `\nContexto y observaciones: ${contexto}`;
+    enviar(t);
+  }
+
+  $("formChat").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const t = $("entrada").value.trim();
+    if (t) enviar(t);
+  });
+
+  $("entrada").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("formChat").requestSubmit(); }
+  });
+  $("entrada").addEventListener("input", (e) => {
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 180) + "px";
+  });
+
+  async function enviar(texto) {
+    if (ocupado) return;
+    ocupado = true;
+    $("btnEnviar").disabled = true;
+    $("entrada").value = "";
+    $("entrada").style.height = "auto";
+
+    if (mensajes.length === 0) $("mensajes").innerHTML = "";
+    mensajes.push({ role: "user", content: texto });
+    $("mensajes").appendChild(crearMensaje("user", texto));
+
+    const div = document.createElement("div");
+    div.className = "msg assistant";
+    const cuerpo = document.createElement("div");
+    cuerpo.className = "cuerpo";
+    cuerpo.innerHTML = '<div class="pensando">Preparando el plan… puede tardar un minuto.</div>';
+    div.appendChild(cuerpo);
+    $("mensajes").appendChild(div);
+    bajar();
+
+    let respuesta = "";
+    let ok = false;
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, mensajes }),
+      });
+      if (r.status === 401) {
+        alert("Su código de acceso ya no es válido. Ingrese de nuevo.");
+        $("btnSalir").click();
+        return;
+      }
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error || `Error ${r.status}`);
+      }
+      const lector = r.body.getReader();
+      const dec = new TextDecoder();
+      let ultimo = 0;
+      while (true) {
+        const { value, done } = await lector.read();
+        if (done) break;
+        respuesta += dec.decode(value, { stream: true });
+        const ahora = Date.now();
+        if (ahora - ultimo > 120) {   // no redibujar en cada letra
+          const abajo = $("conversacion").scrollHeight - $("conversacion").scrollTop - $("conversacion").clientHeight < 80;
+          cuerpo.innerHTML = html(respuesta);
+          if (abajo) bajar();
+          ultimo = ahora;
+        }
+      }
+      respuesta += dec.decode();
+      ok = respuesta.trim().length > 0;
+      if (!ok) throw new Error("La IA no devolvió respuesta. Intente de nuevo.");
+      cuerpo.innerHTML = html(respuesta);
+      div.appendChild(crearAcciones(() => cuerpo, () => respuesta));
+      mensajes.push({ role: "assistant", content: respuesta });
+      guardar(CLAVE_CONV, JSON.stringify(mensajes));
+    } catch (err) {
+      // Se quita el mensaje del docente para que pueda reintentar sin romper el orden.
+      mensajes.pop();
+      cuerpo.innerHTML = `<p style="color:var(--error)">${DOMPurify.sanitize(err.message || "Error de conexión.")}</p>`;
+      $("entrada").value = texto;
+    } finally {
+      ocupado = false;
+      $("btnEnviar").disabled = false;
+      bajar();
+    }
+  }
+
+  // ---------- Arranque ----------
+  const guardado = leer(CLAVE_CODIGO);
+  if (guardado) {
+    verificar(guardado).then((err) => {
+      if (!err) { codigo = guardado; abrirApp(); }
+      else borrar(CLAVE_CODIGO);
+    }).catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
